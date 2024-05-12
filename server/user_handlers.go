@@ -1,22 +1,11 @@
-package main
+package server
 
 import (
-	"log"
 	"net/http"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
-	"kirgu.ru/employee/model"
 )
-
-type Repository interface {
-	SignIn(username string, password string) (*model.User, error)
-	SignUp(username string, password string, passwordConfirmation string) error
-}
-
-type Server struct {
-	e    *echo.Echo
-	repo Repository
-}
 
 type SignInRequest struct {
 	Username string `json:"username"`
@@ -27,16 +16,6 @@ type SignUpRequest struct {
 	Username             string `json:"username"`
 	Password             string `json:"password"`
 	PasswordConfirmation string `json:"password_confirmation"`
-}
-
-func NewServer(e *echo.Echo, repo Repository) *Server {
-	return &Server{e, repo}
-}
-
-func (s *Server) Start() {
-	s.e.POST("/users/sign_in", s.SignIn)
-	s.e.POST("/users/sign_up", s.SignUp)
-	log.Fatal(s.e.Start(":8090"))
 }
 
 func (s *Server) SignIn(c echo.Context) error {
@@ -52,7 +31,18 @@ func (s *Server) SignIn(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, user)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"uid": user.Username,
+	})
+
+	t, err := token.SignedString(secret)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{
+		"token": t,
+	})
 }
 
 func (s *Server) SignUp(c echo.Context) error {
